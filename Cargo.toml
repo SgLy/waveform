@@ -3,6 +3,14 @@ name = "waveform"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "waveform"
+path = "src/lib.rs"
+
+[[example]]
+name = "example"
+path = "examples/example.rs"
+
 [dependencies]
 wavers = "1.4.3"
 image =  { version = "0.25.5", features = ["png"] }

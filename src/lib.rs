@@ -1,40 +1,40 @@
-use std::fs::File;
-
-use image::{codecs::png::PngEncoder, EncodableLayout, ImageBuffer, ImageEncoder, Rgba, RgbaImage};
-use wavers::{read, Samples};
+use image::{ImageBuffer, Rgba, RgbaImage};
 
 #[derive(Debug, Clone, Copy)]
-enum WaveFormMode {
+pub enum WaveFormMode {
     Half,
     Full,
     FullSymmetry,
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ScaleMode {
+pub enum ScaleMode {
     Linear,
     Logarithm,
 }
 
 #[derive(Debug)]
-struct GenerateParams {
-    image_width: u32,
-    image_height: u32,
-    bar_width: u32,
-    bar_padding: u32,
-    wave_form_mode: WaveFormMode,
-    scale_mode: ScaleMode,
-    fill_color: Rgba<u8>,
+pub struct GenerateParams {
+    pub image_width: u32,
+    pub image_height: u32,
+    pub bar_width: u32,
+    pub bar_padding: u32,
+    pub wave_form_mode: WaveFormMode,
+    pub scale_mode: ScaleMode,
+    pub fill_color: Rgba<u8>,
 }
 
-fn generate_image(samples: &[i16], param: &GenerateParams) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
+pub fn generate_waveform(
+    samples: &[i16],
+    param: &GenerateParams,
+) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
     let mut img = RgbaImage::new(param.image_width, param.image_height);
 
     macro_rules! put_rect {
-        ($left: expr, $top: expr, $width: expr, $height: expr, $color: expr) => {
+        ($left: expr, $top: expr, $width: expr, $height: expr) => {
             for i in $left..$left + $width {
                 for j in $top..$top + $height {
-                    img.put_pixel(i, j, $color);
+                    img.put_pixel(i, j, param.fill_color);
                 }
             }
         };
@@ -92,7 +92,7 @@ fn generate_image(samples: &[i16], param: &GenerateParams) -> ImageBuffer<Rgba<u
                         top /= 2
                     };
                     let top = top;
-                    put_rect!(left, top, width, height, param.fill_color);
+                    put_rect!(left, top, width, height);
                 }
                 WaveFormMode::Full => {
                     let upper_height_abs = vertical_scale!((current_max as f64).abs());
@@ -107,13 +107,7 @@ fn generate_image(samples: &[i16], param: &GenerateParams) -> ImageBuffer<Rgba<u
                     } else {
                         plot_height + lower_height_abs
                     };
-                    put_rect!(
-                        left,
-                        upper_pos,
-                        width,
-                        lower_pos - upper_pos,
-                        param.fill_color
-                    );
+                    put_rect!(left, upper_pos, width, lower_pos - upper_pos);
                 }
             };
             current_bar += 1;
@@ -124,61 +118,4 @@ fn generate_image(samples: &[i16], param: &GenerateParams) -> ImageBuffer<Rgba<u
     }
 
     img
-}
-
-fn main() {
-    let input_file_name = "test.wav";
-    let (samples, _): (Samples<i16>, i32) = read::<i16, _>(input_file_name).unwrap();
-
-    let wave_form_modes = [
-        WaveFormMode::Half,
-        WaveFormMode::Full,
-        WaveFormMode::FullSymmetry,
-    ];
-    let scale_modes = [ScaleMode::Linear, ScaleMode::Logarithm];
-
-    for wave_form_mode in wave_form_modes.iter() {
-        for scale_mode in scale_modes.iter() {
-            let wave_form_mode_str = match wave_form_mode {
-                WaveFormMode::Full => "full",
-                WaveFormMode::FullSymmetry => "full-symmetry",
-                WaveFormMode::Half => "half",
-            };
-            let scale_mode_str = match scale_mode {
-                ScaleMode::Linear => "linear",
-                ScaleMode::Logarithm => "logarithm",
-            };
-            let output_file_name =
-                format!("waveform_{}_{}.png", wave_form_mode_str, scale_mode_str);
-            let height = 800
-                / if let WaveFormMode::Half = wave_form_mode {
-                    2
-                } else {
-                    1
-                };
-            let buffer = generate_image(
-                &samples,
-                &GenerateParams {
-                    wave_form_mode: *wave_form_mode,
-                    bar_padding: 5,
-                    bar_width: 10,
-                    image_height: height,
-                    image_width: 3200,
-                    fill_color: Rgba([255, 255, 255, 255]),
-                    scale_mode: *scale_mode,
-                },
-            );
-
-            let output_file = File::create(output_file_name).unwrap();
-
-            let png = PngEncoder::new(output_file);
-            png.write_image(
-                buffer.as_bytes(),
-                buffer.width(),
-                buffer.height(),
-                image::ExtendedColorType::Rgba8,
-            )
-            .unwrap();
-        }
-    }
 }
